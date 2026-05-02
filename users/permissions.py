@@ -12,3 +12,11 @@ class IsProjectOwner(permissions.BasePermission):
 class IsRegularUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == UserRole.USER
+
+class IsAdminOrProjectOwner(permissions.BasePermission):
+    """Grants access to both Admin and Project Owner roles."""
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in [
+            UserRole.ADMIN,
+            UserRole.PROJECT_OWNER
+        ]

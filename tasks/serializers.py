@@ -21,6 +21,11 @@ class TaskSerializer(serializers.ModelSerializer):
     created_by = serializers.ReadOnlyField(source='created_by.email')
     assigned_to_email = serializers.ReadOnlyField(source='assigned_to.email')
     project_name = serializers.ReadOnlyField(source='project.name')
+    due_date = serializers.DateField(
+        allow_null=True, 
+        required=False,
+        error_messages={'invalid': 'Please provide a valid date.'}
+    )
 
     class Meta:
         model = Task

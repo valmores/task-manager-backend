@@ -3,7 +3,12 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 
 from .models import Task, Project
-from .serializers import TaskSerializer, TaskStatusUpdateSerializer, ProjectSerializer
+from .serializers import (
+    TaskSerializer, 
+    TaskStatusUpdateSerializer, 
+    ProjectSerializer,
+    TaskAssignmentSerializer
+)
 from users.permissions import IsAdminOrProjectOwner, IsAdmin
 from users.models import UserRole
 
@@ -17,8 +22,10 @@ class ProjectListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role in [UserRole.ADMIN, UserRole.PROJECT_OWNER]:
+        if user.role == UserRole.ADMIN:
             return Project.objects.all()
+        if user.role == UserRole.PROJECT_OWNER:
+            return Project.objects.filter(created_by=user)
         # Regular users only see projects where they have an assigned task
         return Project.objects.filter(tasks__assigned_to=user).distinct()
 
@@ -41,8 +48,10 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role in [UserRole.ADMIN, UserRole.PROJECT_OWNER]:
+        if user.role == UserRole.ADMIN:
             return Project.objects.all()
+        if user.role == UserRole.PROJECT_OWNER:
+            return Project.objects.filter(created_by=user)
         return Project.objects.filter(tasks__assigned_to=user).distinct()
 
     def get_permissions(self):
@@ -60,8 +69,10 @@ class TaskListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role in [UserRole.ADMIN, UserRole.PROJECT_OWNER]:
+        if user.role == UserRole.ADMIN:
             return Task.objects.all()
+        if user.role == UserRole.PROJECT_OWNER:
+            return Task.objects.filter(project__created_by=user)
         # Regular users only see tasks assigned to them
         return Task.objects.filter(assigned_to=user)
 
@@ -85,8 +96,10 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role in [UserRole.ADMIN, UserRole.PROJECT_OWNER]:
+        if user.role == UserRole.ADMIN:
             return Task.objects.all()
+        if user.role == UserRole.PROJECT_OWNER:
+            return Task.objects.filter(project__created_by=user)
         return Task.objects.filter(assigned_to=user)
 
     def get_serializer_class(self):
@@ -94,6 +107,9 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         # Regular users only get the restricted status-only serializer for PATCH
         if self.request.method == 'PATCH' and user.role == UserRole.USER:
             return TaskStatusUpdateSerializer
+        # Project Owners can only reassign tasks via PATCH
+        if self.request.method == 'PATCH' and user.role == UserRole.PROJECT_OWNER:
+            return TaskAssignmentSerializer
         return TaskSerializer
 
     def get_permissions(self):
@@ -109,9 +125,8 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         user = self.request.user
-        # Project Owners can Create/Assign but NOT Edit (Strict RBAC)
-        if user.role == UserRole.PROJECT_OWNER:
-            raise PermissionDenied("Project Owners cannot edit tasks once created. Only Admins have full management access.")
+        # Project Owners can Create/Assign (via TaskAssignmentSerializer) but NOT Edit other fields (Strict RBAC)
+        # The serializer handles the field restriction.
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):

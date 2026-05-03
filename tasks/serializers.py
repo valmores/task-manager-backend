@@ -37,3 +37,10 @@ class TaskStatusUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ('id', 'status',)
+
+
+class TaskAssignmentSerializer(serializers.ModelSerializer):
+    """Restricted serializer — Project Owners can only update assignment."""
+    class Meta:
+        model = Task
+        fields = ('id', 'assigned_to',)

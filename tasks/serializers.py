@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task, Project
+from .models import Task, Project, TaskNote
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -16,11 +16,27 @@ class ProjectSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_by', 'created_at', 'updated_at')
 
 
+
+class TaskNoteSerializer(serializers.ModelSerializer):
+    """Serializer for internal task notes."""
+    author_email = serializers.ReadOnlyField(source='author.email')
+    author_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskNote
+        fields = ('id', 'task', 'author', 'author_email', 'author_name', 'content', 'created_at')
+        read_only_fields = ('author', 'created_at')
+
+    def get_author_name(self, obj):
+        return f"{obj.author.first_name} {obj.author.last_name}"
+
+
 class TaskSerializer(serializers.ModelSerializer):
     """Full task serializer for Admin and Project Owners."""
     created_by = serializers.ReadOnlyField(source='created_by.email')
     assigned_to_email = serializers.ReadOnlyField(source='assigned_to.email')
     project_name = serializers.ReadOnlyField(source='project.name')
+    notes = TaskNoteSerializer(many=True, read_only=True)
     due_date = serializers.DateField(
         allow_null=True, 
         required=False,
@@ -32,7 +48,7 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'title', 'description', 'project', 'project_name',
             'status', 'priority', 'due_date', 'assigned_to', 
-            'assigned_to_email', 'created_by', 'created_at', 'updated_at'
+            'assigned_to_email', 'notes', 'created_by', 'created_at', 'updated_at'
         )
         read_only_fields = ('created_by', 'created_at', 'updated_at')
 

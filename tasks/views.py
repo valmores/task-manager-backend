@@ -2,12 +2,13 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 
-from .models import Task, Project
+from .models import Task, Project, TaskNote
 from .serializers import (
     TaskSerializer, 
     TaskStatusUpdateSerializer, 
     ProjectSerializer,
-    TaskAssignmentSerializer
+    TaskAssignmentSerializer,
+    TaskNoteSerializer
 )
 from users.permissions import IsAdminOrProjectOwner, IsAdmin
 from users.models import UserRole
@@ -138,3 +139,33 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         task = self.get_object()
         task.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TaskNoteListCreateView(generics.ListCreateAPIView):
+    """
+    Internal notes accessible only to Admin and Project Owners.
+    """
+    serializer_class = TaskNoteSerializer
+    permission_classes = [IsAdminOrProjectOwner]
+
+    def get_queryset(self):
+        user = self.request.user
+        task_id = self.request.query_params.get('task')
+        
+        base_qs = TaskNote.objects.all()
+        if task_id:
+            base_qs = base_qs.filter(task_id=task_id)
+
+        if user.role == UserRole.ADMIN:
+            return base_qs
+        
+        # Project Owners see notes for tasks in their projects
+        return base_qs.filter(task__project__created_by=user)
+
+    def perform_create(self, serializer):
+        # Additional check to ensure they can't post notes to tasks they don't own
+        task = serializer.validated_data.get('task')
+        if self.request.user.role == UserRole.PROJECT_OWNER and task.project.created_by != self.request.user:
+            raise PermissionDenied("You can only add notes to tasks in your own projects.")
+            
+        serializer.save(author=self.request.user)

@@ -69,3 +69,17 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class TaskNote(models.Model):
+    """Internal notes for tasks, accessible only to Admin and Project Owners."""
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='notes')
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Note by {self.author.email} on {self.task.title}"

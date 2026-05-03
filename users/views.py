@@ -1,6 +1,11 @@
-from rest_framework import generics, permissions
-from .models import CustomUser
-from .serializers import RegisterSerializer, UserSerializer, AdminCreateUserSerializer, UserOptionSerializer
+from rest_framework import generics, permissions, status
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
+from .models import CustomUser, UserRole
+from .serializers import (
+    RegisterSerializer, UserSerializer, AdminCreateUserSerializer,
+    UserOptionSerializer, AdminUserSerializer
+)
 from .permissions import IsAdmin, IsAdminOrProjectOwner
 
 class RegisterView(generics.CreateAPIView):
@@ -29,4 +34,56 @@ class UserListView(generics.ListAPIView):
     """
     serializer_class = UserOptionSerializer
     permission_classes = [IsAdminOrProjectOwner]
-    queryset = CustomUser.objects.filter(is_active=True).order_by('first_name')
+    queryset = CustomUser.objects.filter(is_active=True, role=UserRole.USER).order_by('first_name')
+
+
+class AdminUserListView(generics.ListCreateAPIView):
+    """
+    GET  /api/users/admin/  — List ALL users (all roles, active and inactive).
+    POST /api/users/admin/  — Create a new user with role selection.
+    Admin only.
+    """
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsAdmin]
+
+    def get_queryset(self):
+        return CustomUser.objects.all().order_by('first_name')
+
+    def get_serializer_class(self):
+        # Use full create serializer for POST (needs password field)
+        if self.request.method == 'POST':
+            return AdminCreateUserSerializer
+        return AdminUserSerializer
+
+
+class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/users/admin/<id>/  — Retrieve a single user.
+    PATCH  /api/users/admin/<id>/  — Update role, name, or is_active.
+    DELETE /api/users/admin/<id>/  — Soft deactivate (is_active = False).
+    Admin only. Admins cannot modify or deactivate their own account.
+    """
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsAdmin]
+    queryset = CustomUser.objects.all()
+
+    def _guard_self_modification(self, request, obj):
+        """Prevent admin from modifying their own account."""
+        if obj.id == request.user.id:
+            raise PermissionDenied("You cannot modify your own account from the Admin Panel.")
+
+    def update(self, request, *args, **kwargs):
+        obj = self.get_object()
+        self._guard_self_modification(request, obj)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        obj = self.get_object()
+        self._guard_self_modification(request, obj)
+        # Soft delete: deactivate instead of removing from the database
+        obj.is_active = False
+        obj.save()
+        return Response(
+            {"detail": f"User '{obj.email}' has been deactivated."},
+            status=status.HTTP_200_OK
+        )

@@ -59,3 +59,11 @@ class UserOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ('id', 'email', 'first_name', 'last_name', 'role')
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Full serializer for Admin Panel user management."""
+    class Meta:
+        model = CustomUser
+        fields = ('id', 'email', 'first_name', 'last_name', 'role', 'is_active', 'date_joined')
+        read_only_fields = ('id', 'email', 'date_joined')

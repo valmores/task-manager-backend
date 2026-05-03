@@ -4,7 +4,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from .models import Task, Project
 from .serializers import TaskSerializer, TaskStatusUpdateSerializer, ProjectSerializer
-from users.permissions import IsAdminOrProjectOwner
+from users.permissions import IsAdminOrProjectOwner, IsAdmin
 from users.models import UserRole
 
 
@@ -34,8 +34,8 @@ class ProjectListCreateView(generics.ListCreateAPIView):
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     GET    — Authenticated users (scoped).
-    PUT/PATCH — Admin and Project Owner (ownership enforced).
-    DELETE — Admin and Project Owner (ownership enforced).
+    PUT/PATCH — Admin only (Strict RBAC).
+    DELETE — Admin only (Strict RBAC).
     """
     serializer_class = ProjectSerializer
 
@@ -47,16 +47,8 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            return [IsAdminOrProjectOwner()]
+            return [IsAdmin()]
         return [permissions.IsAuthenticated()]
-
-    def check_object_permissions(self, request, obj):
-        super().check_object_permissions(request, obj)
-        # If user is Project Owner, they can only modify their own projects
-        if (request.method in ['PUT', 'PATCH', 'DELETE'] and 
-            request.user.role == UserRole.PROJECT_OWNER and 
-            obj.created_by != request.user):
-            raise PermissionDenied("You can only modify projects you created.")
 
 
 class TaskListCreateView(generics.ListCreateAPIView):
@@ -84,10 +76,10 @@ class TaskListCreateView(generics.ListCreateAPIView):
 
 class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
-    GET    — All authenticated users (scope enforced by get_object).
-    PUT    — Admin and Project Owners only.
-    PATCH  — All authenticated users, but regular users can only update status.
-    DELETE — Admin, Project Owners, and the assigned regular user.
+    GET    — All authenticated users (scope enforced).
+    PUT    — Admin only (Strict RBAC).
+    PATCH  — Admin can update all; Users can update status only; Owner blocked from edit.
+    DELETE — Admin only (Strict RBAC).
     """
     serializer_class = TaskSerializer
 
@@ -106,15 +98,28 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method in ['PUT']:
-            return [IsAdminOrProjectOwner()]
+            return [IsAdmin()]
+        if self.request.method == 'PATCH':
+            # We allow the method here, but restrict logic in perform_update if needed
+            # or rely on serializer + custom logic.
+            return [permissions.IsAuthenticated()]
+        if self.request.method == 'DELETE':
+            return [IsAdmin()]
         return [permissions.IsAuthenticated()]
 
+    def perform_update(self, serializer):
+        user = self.request.user
+        # Project Owners can Create/Assign but NOT Edit (Strict RBAC)
+        if user.role == UserRole.PROJECT_OWNER:
+            raise PermissionDenied("Project Owners cannot edit tasks once created. Only Admins have full management access.")
+        serializer.save()
+
     def destroy(self, request, *args, **kwargs):
-        task = self.get_object()
         user = request.user
-        # Admin and Project Owners can delete any task
-        # Regular users can only delete tasks assigned to them
-        if user.role == UserRole.USER and task.assigned_to != user:
-            raise PermissionDenied("You can only delete tasks assigned to you.")
+        # Admin only for deletion (Strict RBAC)
+        if user.role != UserRole.ADMIN:
+            raise PermissionDenied("Only Admins can delete tasks.")
+        
+        task = self.get_object()
         task.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

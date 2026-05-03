@@ -52,3 +52,10 @@ class AdminCreateUserSerializer(serializers.ModelSerializer):
             is_superuser=is_superuser
         )
         return user
+
+
+class UserOptionSerializer(serializers.ModelSerializer):
+    """Minimal serializer for task assignment dropdowns."""
+    class Meta:
+        model = CustomUser
+        fields = ('id', 'email', 'first_name', 'last_name', 'role')

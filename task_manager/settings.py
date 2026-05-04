@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+from django.http import JsonResponse
 from dotenv import load_dotenv
 
 # Load environment variables from .env
@@ -41,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'axes',
     # Third party apps
     'rest_framework',
     'rest_framework_simplejwt',
@@ -52,6 +54,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'axes.middleware.AxesMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -135,6 +138,26 @@ STATIC_URL = 'static/'
 
 # Auth configuration
 AUTH_USER_MODEL = 'users.CustomUser'
+
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# Axes Configuration
+AXES_FAILURE_LIMIT = int(os.getenv('AXES_FAILURE_LIMIT', 5))
+AXES_COOLOFF_TIME = int(os.getenv('AXES_COOLOFF_TIME', 1))
+
+def axes_lockout_handler(request, credentials, *args, **kwargs):
+    return JsonResponse(
+        {"detail": "Too many login attempts. Please try again later."},
+        status=429
+    )
+
+AXES_LOCKOUT_CALLABLE = axes_lockout_handler
+AXES_LOCKOUT_TEMPLATE = None
+AXES_LOCKOUT_PARAMETERS = ['ip_address']
+AXES_RESET_ON_SUCCESS = True
 
 # REST Framework configuration
 REST_FRAMEWORK = {

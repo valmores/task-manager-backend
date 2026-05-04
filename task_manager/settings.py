@@ -146,7 +146,7 @@ AUTHENTICATION_BACKENDS = [
 
 # Axes Configuration
 AXES_FAILURE_LIMIT = int(os.getenv('AXES_FAILURE_LIMIT', 5))
-AXES_COOLOFF_TIME = int(os.getenv('AXES_COOLOFF_TIME', 1))
+AXES_COOLOFF_TIME = float(os.getenv('AXES_COOLOFF_TIME', 1))
 
 def axes_lockout_handler(request, credentials, *args, **kwargs):
     return JsonResponse(
@@ -156,7 +156,7 @@ def axes_lockout_handler(request, credentials, *args, **kwargs):
 
 AXES_LOCKOUT_CALLABLE = axes_lockout_handler
 AXES_LOCKOUT_TEMPLATE = None
-AXES_LOCKOUT_PARAMETERS = ['ip_address']
+AXES_LOCKOUT_PARAMETERS = ['username']
 AXES_RESET_ON_SUCCESS = True
 
 # REST Framework configuration

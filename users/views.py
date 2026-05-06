@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from .models import CustomUser, UserRole
 from .serializers import (
     RegisterSerializer, UserSerializer, AdminCreateUserSerializer,
-    UserOptionSerializer, AdminUserSerializer
+    UserOptionSerializer, AdminUserSerializer, ChangePasswordSerializer
 )
 from .permissions import IsAdmin, IsAdminOrProjectOwner
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -91,6 +91,22 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
             {"detail": f"User '{obj.email}' has been deactivated."},
             status=status.HTTP_200_OK
         )
+
+class ChangePasswordView(generics.GenericAPIView):
+    serializer_class = ChangePasswordSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user = request.user
+        if not user.check_password(serializer.validated_data.get('old_password')):
+            return Response({"detail": "Incorrect current password."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.set_password(serializer.validated_data.get('new_password'))
+        user.save()
+        return Response({"detail": "Password updated successfully."}, status=status.HTTP_200_OK)
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):

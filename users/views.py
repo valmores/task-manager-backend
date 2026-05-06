@@ -7,6 +7,10 @@ from .serializers import (
     UserOptionSerializer, AdminUserSerializer
 )
 from .permissions import IsAdmin, IsAdminOrProjectOwner
+from rest_framework_simplejwt.views import TokenObtainPairView
+from django.conf import settings
+from axes.models import AccessAttempt
+from axes.utils import reset
 
 class RegisterView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
@@ -87,3 +91,33 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
             {"detail": f"User '{obj.email}' has been deactivated."},
             status=status.HTTP_200_OK
         )
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        return response
+
+    def handle_exception(self, exc):
+        response = super().handle_exception(exc)
+        
+        if response.status_code == 401:
+            # Calculate attempts left
+            username = self.request.data.get('email')
+            if username:
+                attempts = AccessAttempt.objects.filter(username=username).first()
+                failure_limit = getattr(settings, 'AXES_FAILURE_LIMIT', 5)
+                
+                # axes already increments the failure count before we reach this handler
+                current_failures = attempts.failures_since_start if attempts else 1
+                attempts_left = max(0, failure_limit - current_failures)
+                
+                response.data['attempts_left'] = attempts_left
+                if attempts_left > 0:
+                    unit = "attempt" if attempts_left == 1 else "attempts"
+                    response.data['detail'] = f"Invalid credentials. {attempts_left} {unit} left before lockout."
+                else:
+                    response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
+                    response.data['lockout_duration'] = int(settings.AXES_COOLOFF_TIME.total_seconds())
+                    response.data['detail'] = f"Invalid credentials. Your account is now locked for {response.data['lockout_duration']} seconds."
+        
+        return response

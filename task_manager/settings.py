@@ -145,12 +145,16 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Axes Configuration
+from datetime import timedelta
 AXES_FAILURE_LIMIT = int(os.getenv('AXES_FAILURE_LIMIT', 5))
-AXES_COOLOFF_TIME = float(os.getenv('AXES_COOLOFF_TIME', 1))
+AXES_COOLOFF_TIME = timedelta(seconds=int(os.getenv('AXES_COOLOFF_TIME', 30)))
 
 def axes_lockout_handler(request, credentials, *args, **kwargs):
     return JsonResponse(
-        {"detail": "Too many login attempts. Please try again later."},
+        {
+            "detail": "Too many login attempts. Please try again later.",
+            "lockout_duration": int(AXES_COOLOFF_TIME.total_seconds())
+        },
         status=429
     )
 

@@ -19,4 +19,5 @@ from django.urls import path, include
 urlpatterns = [
     path('api/users/', include('users.urls')),
     path('api/tasks/', include('tasks.urls')),
+    path("api/internal/", include("internal_notes.urls")),
 ]

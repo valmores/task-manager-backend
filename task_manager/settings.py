@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     # Local apps
     'users',
     'tasks',
+    'internal_notes',
 ]
 
 MIDDLEWARE = [

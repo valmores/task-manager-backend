@@ -7,7 +7,7 @@ from .models import NoteRoom, InternalNote
 from .serializers import NoteRoomSerializer, InternalNoteSerializer
 
 from .permissions import (
-    can_view_rooms,
+    can_view_room,
     can_create_room,
     can_delete_room,
     can_view_messages,
@@ -20,10 +20,16 @@ class RoomListView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
 
-        if not can_view_rooms(user):
+        if not user.is_authenticated:
             raise PermissionDenied("Not allowed")
 
-        return NoteRoom.objects.all()
+        # Get all rooms and filter by what user can view
+        all_rooms = NoteRoom.objects.select_related('created_by', 'project').all()
+        accessible_rooms = [room for room in all_rooms if can_view_room(user, room)]
+        
+        # Return queryset of accessible room IDs
+        accessible_ids = [room.id for room in accessible_rooms]
+        return NoteRoom.objects.filter(id__in=accessible_ids).select_related('created_by', 'project')
 
 class RoomCreateView(generics.CreateAPIView):
     serializer_class = NoteRoomSerializer
@@ -34,7 +40,22 @@ class RoomCreateView(generics.CreateAPIView):
         if not can_create_room(user):
             raise PermissionDenied("Not allowed to create rooms")
 
-        serializer.save(created_by=user)
+        # Validate visibility + project field consistency
+        visibility = serializer.validated_data.get('visibility', 'internal')
+        project = serializer.validated_data.get('project')
+
+        if visibility == 'project_specific' and project is None:
+            raise PermissionDenied("PROJECT_SPECIFIC rooms require a project to be specified")
+
+        if visibility != 'project_specific' and project is not None:
+            raise PermissionDenied(f"{visibility.upper()} rooms cannot have an associated project")
+
+        # Set created_by to current user
+        room = serializer.save(created_by=user)
+        
+        # If PRIVATE room, auto-add creator to members
+        if room.visibility == 'private':
+            room.members.add(user)
 
 class RoomDeleteView(generics.DestroyAPIView):
     queryset = NoteRoom.objects.all()
@@ -67,15 +88,3 @@ class RoomMessagesView(generics.ListCreateAPIView):
             raise PermissionDenied("Not allowed to send message")
 
         serializer.save(author=user, room=room)
-
-class RoomDeleteView(generics.DestroyAPIView):
-    queryset = NoteRoom.objects.all()
-    serializer_class = NoteRoomSerializer
-
-    def perform_destroy(self, instance):
-        user = self.request.user
-
-        if not can_delete_room(user, instance):
-            raise PermissionDenied("Not allowed to delete room")
-
-        instance.delete()

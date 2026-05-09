@@ -9,6 +9,7 @@ from .serializers import NoteRoomSerializer, InternalNoteSerializer
 from .permissions import (
     can_view_room,
     can_create_room,
+    can_update_room,
     can_delete_room,
     can_view_messages,
     can_send_message,
@@ -68,6 +69,31 @@ class RoomDeleteView(generics.DestroyAPIView):
             raise PermissionDenied("Not allowed to delete room")
 
         instance.delete()
+
+class RoomUpdateView(generics.UpdateAPIView):
+    queryset = NoteRoom.objects.all()
+    serializer_class = NoteRoomSerializer
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        room = self.get_object()
+
+        if not can_update_room(user, room):
+            raise PermissionDenied("Not allowed to update room")
+
+        # Validate visibility + project field consistency if they are being updated
+        visibility = serializer.validated_data.get('visibility', room.visibility)
+        project = serializer.validated_data.get('project', room.project)
+
+        if visibility == 'project_specific' and project is None:
+            raise PermissionDenied("PROJECT_SPECIFIC rooms require a project to be specified")
+
+        if visibility != 'project_specific' and project is not None:
+            # Only raise if project is explicitly being set or was already set
+            if serializer.validated_data.get('project'):
+                 raise PermissionDenied(f"{visibility.upper()} rooms cannot have an associated project")
+
+        serializer.save()
 
 class RoomMessagesView(generics.ListCreateAPIView):
     serializer_class = InternalNoteSerializer

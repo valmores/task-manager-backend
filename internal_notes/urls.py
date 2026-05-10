@@ -4,6 +4,7 @@ from .views import (
     RoomCreateView,
     RoomUpdateView,
     RoomDeleteView,
+    RoomMembersView,
     RoomMessagesView,
 )
 
@@ -13,6 +14,7 @@ urlpatterns = [
     path("rooms/create/", RoomCreateView.as_view(), name="room-create"),
     path("rooms/<int:pk>/update/", RoomUpdateView.as_view(), name="room-update"),
     path("rooms/<int:pk>/delete/", RoomDeleteView.as_view(), name="room-delete"),
+    path("rooms/<int:pk>/members/", RoomMembersView.as_view(), name="room-members"),
 
     # Messages
     path("rooms/<int:room_id>/messages/", RoomMessagesView.as_view(), name="room-messages"),

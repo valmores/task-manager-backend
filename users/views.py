@@ -41,6 +41,17 @@ class UserListView(generics.ListAPIView):
     queryset = CustomUser.objects.filter(is_active=True, role=UserRole.USER).order_by('first_name')
 
 
+class AllUsersListView(generics.ListAPIView):
+    """
+    GET /api/users/all/
+    Returns ALL active users (all roles) for room member selection.
+    Accessible by Admin and Project Owner.
+    """
+    serializer_class = UserOptionSerializer
+    permission_classes = [IsAdminOrProjectOwner]
+    queryset = CustomUser.objects.filter(is_active=True).order_by('first_name')
+
+
 class AdminUserListView(generics.ListCreateAPIView):
     """
     GET  /api/users/admin/  — List ALL users (all roles, active and inactive).

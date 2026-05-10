@@ -2,7 +2,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import (
     RegisterView, UserDetailView, AdminCreateUserView,
-    UserListView, AdminUserListView, AdminUserDetailView,
+    UserListView, AllUsersListView, AdminUserListView, AdminUserDetailView,
     CustomTokenObtainPairView, ChangePasswordView
 )
 
@@ -14,6 +14,7 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('user-profile/', UserDetailView.as_view(), name='user_profile'),
     path('list/', UserListView.as_view(), name='user_list'),
+    path('all/', AllUsersListView.as_view(), name='all_users'),
     path('change-password/', ChangePasswordView.as_view(), name='change_password'),
     # Admin panel endpoints
     path('admin/create-user/', AdminCreateUserView.as_view(), name='admin_create_user'),

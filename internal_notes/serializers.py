@@ -2,6 +2,15 @@ from rest_framework import serializers
 from .models import NoteRoom, InternalNote
 
 
+class MemberInfoSerializer(serializers.Serializer):
+    """Minimal read-only serializer for room member display."""
+    id = serializers.IntegerField()
+    email = serializers.EmailField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    role = serializers.CharField()
+
+
 class NoteRoomSerializer(serializers.ModelSerializer):
     created_by_email = serializers.CharField(
         source="created_by.email",
@@ -13,11 +22,17 @@ class NoteRoomSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True
     )
+    members_detail = MemberInfoSerializer(
+        source="members",
+        many=True,
+        read_only=True
+    )
 
     class Meta:
         model = NoteRoom
         fields = "__all__"
-        read_only_fields = ["created_by", "created_at", "members"]
+        # members is now writable (PrimaryKeyRelatedField by default)
+        read_only_fields = ["created_by", "created_at"]
 
 
 class InternalNoteSerializer(serializers.ModelSerializer):

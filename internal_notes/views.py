@@ -1,7 +1,11 @@
 from django.shortcuts import render
 from django.shortcuts import get_object_or_404
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 from .models import NoteRoom, InternalNote
 from .serializers import NoteRoomSerializer, InternalNoteSerializer
@@ -13,6 +17,7 @@ from .permissions import (
     can_delete_room,
     can_view_messages,
     can_send_message,
+    can_manage_members,
 )
 
 class RoomListView(generics.ListAPIView):
@@ -30,7 +35,7 @@ class RoomListView(generics.ListAPIView):
         
         # Return queryset of accessible room IDs
         accessible_ids = [room.id for room in accessible_rooms]
-        return NoteRoom.objects.filter(id__in=accessible_ids).select_related('created_by', 'project')
+        return NoteRoom.objects.filter(id__in=accessible_ids).select_related('created_by', 'project').prefetch_related('members')
 
 class RoomCreateView(generics.CreateAPIView):
     serializer_class = NoteRoomSerializer
@@ -51,12 +56,21 @@ class RoomCreateView(generics.CreateAPIView):
         if visibility != 'project_specific' and project is not None:
             raise PermissionDenied(f"{visibility.upper()} rooms cannot have an associated project")
 
+        # Extract members from validated data (M2M is handled separately)
+        initial_members = serializer.validated_data.pop('members', [])
+
         # Set created_by to current user
         room = serializer.save(created_by=user)
         
-        # If PRIVATE room, auto-add creator to members
-        if room.visibility == 'private':
-            room.members.add(user)
+        # Add creator to members list + initial members (regardless of visibility)
+        room.members.add(user)
+        
+        # If Internal: Automatically add all active users in the system
+        if room.visibility == 'internal':
+            all_active_users = User.objects.filter(is_active=True)
+            room.members.add(*all_active_users)
+        elif initial_members:
+            room.members.add(*initial_members)
 
 class RoomDeleteView(generics.DestroyAPIView):
     queryset = NoteRoom.objects.all()
@@ -95,6 +109,42 @@ class RoomUpdateView(generics.UpdateAPIView):
 
         serializer.save()
 
+        # If visibility was changed to internal, add everyone
+        if visibility == 'internal':
+            all_active_users = User.objects.filter(is_active=True)
+            room.members.add(*all_active_users)
+
+
+class RoomMembersView(generics.GenericAPIView):
+    """
+    PATCH /api/internal/rooms/<pk>/members/
+    Payload: { "add": [user_id, ...], "remove": [user_id, ...] }
+
+    Only allowed on PRIVATE rooms.
+    Permitted by: Admin OR room creator.
+    """
+    queryset = NoteRoom.objects.prefetch_related('members').all()
+    serializer_class = NoteRoomSerializer
+
+    def patch(self, request, pk):
+        room = get_object_or_404(NoteRoom, pk=pk)
+        user = request.user
+
+        if not can_manage_members(user, room):
+            raise PermissionDenied("Only admins or the room creator can manage members.")
+
+        add_ids = request.data.get("add", [])
+        remove_ids = request.data.get("remove", [])
+
+        if add_ids:
+            room.members.add(*add_ids)
+        if remove_ids:
+            room.members.remove(*remove_ids)
+
+        serializer = self.get_serializer(room)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class RoomMessagesView(generics.ListCreateAPIView):
     serializer_class = InternalNoteSerializer
 
@@ -113,4 +163,4 @@ class RoomMessagesView(generics.ListCreateAPIView):
         if not can_send_message(user, room):
             raise PermissionDenied("Not allowed to send message")
 
-        serializer.save(author=user, room=room)
+        serializer.save(author=user, room=room)

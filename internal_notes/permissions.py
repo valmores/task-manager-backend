@@ -7,40 +7,20 @@
 
 def can_view_room(user, room):
     """
-    Check if user can view a room based on visibility level.
-    
-    - ADMIN_ONLY: Only admins
-    - INTERNAL: All authenticated users
-    - PROJECT_SPECIFIC: Project members + admins
-    - PRIVATE: Room members + admins
+    Check if user can view a room based on STRICT MEMBERSHIP.
+    - Admins and Room Creators can view any room.
+    - For all other users: Must be in the room.members list.
     """
     if not user.is_authenticated:
         return False
 
-    # Admin can always view
-    if user.role == "admin":
+    # 1. Admin or Creator Bypass
+    if user.role == "admin" or room.created_by == user:
         return True
 
-    visibility = room.visibility
-
-    if visibility == "admin_only":
-        return False
-
-    if visibility == "internal":
-        return True
-
-    if visibility == "project_specific":
-        # Check if user is a member of the project or project owner
-        if room.project is None:
-            return False
-        # Allow project owner or if user created the project
-        return user.role == "project_owner" or room.project.created_by == user
-
-    if visibility == "private":
-        # Check if user is in room members
-        return room.members.filter(id=user.id).exists()
-
-    return False
+    # 2. Strict Membership Check
+    # This covers Internal, Project-Specific, and Private rooms.
+    return room.members.filter(id=user.id).exists()
 
 
 def can_post_in_room(user, room):
@@ -59,23 +39,43 @@ def can_create_room(user):
 
 def can_delete_room(user, room):
     """
-    Only Admin can delete rooms.
+    Only Admin or the Creator can delete rooms.
     Default rooms are protected (cannot be deleted unless admin).
     """
     if not user.is_authenticated:
         return False
 
-    if room.is_default:
-        return user.role == "admin"
+    if user.role == "admin":
+        return True
 
-    return user.role == "admin"
+    if room.is_default:
+        return False
+
+    return room.created_by == user
 
 
 def can_update_room(user, room):
     """
-    Only Admin can update rooms.
+    Admin OR the room creator can update rooms.
     """
-    return user.is_authenticated and user.role == "admin"
+    if not user.is_authenticated:
+        return False
+
+    return user.role == "admin" or room.created_by == user
+
+
+def can_manage_members(user, room):
+    """
+    Admin OR the room creator can manage room members.
+    """
+    if not user.is_authenticated:
+        return False
+
+    if user.role == "admin":
+        return True
+
+    # Room creator can manage their own room's members
+    return room.created_by == user
 
 
 # =========================

@@ -3,7 +3,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from .models import CustomUser, UserRole
 from .serializers import (
-    RegisterSerializer, UserSerializer, AdminCreateUserSerializer,
+    UserSerializer, AdminCreateUserSerializer,
     UserOptionSerializer, AdminUserSerializer, ChangePasswordSerializer
 )
 from .permissions import IsAdmin, IsAdminOrProjectOwner
@@ -12,10 +12,7 @@ from django.conf import settings
 from axes.models import AccessAttempt
 from axes.utils import reset
 
-class RegisterView(generics.CreateAPIView):
-    queryset = CustomUser.objects.all()
-    permission_classes = (permissions.AllowAny,)
-    serializer_class = RegisterSerializer
+
 
 class AdminCreateUserView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()

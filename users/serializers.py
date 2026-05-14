@@ -8,22 +8,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ('id', 'email', 'first_name', 'last_name', 'role', 'date_joined', 'is_staff', 'is_superuser')
         read_only_fields = ('date_joined',)
 
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, validators=[validate_password])
 
-    class Meta:
-        model = CustomUser
-        fields = ('email', 'password', 'first_name', 'last_name')
-
-    def create(self, validated_data):
-        user = CustomUser.objects.create_user(
-            email=validated_data['email'],
-            password=validated_data['password'],
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', ''),
-            role=UserRole.USER  # Always default to user for public registration
-        )
-        return user
 
 class AdminCreateUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])

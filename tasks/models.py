@@ -30,6 +30,19 @@ class Project(models.Model):
         return self.name
 
 
+class Signature(models.Model):
+    image = models.TextField()  # Base64 PNG string
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='signatures'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Signature by {self.created_by.email} ({self.created_at})"
+
+
 class Task(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -64,6 +77,14 @@ class Task(models.Model):
         on_delete=models.CASCADE,
         related_name='created_tasks'
     )
+    signature = models.ForeignKey(
+        Signature,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tasks'
+    )
+    signed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

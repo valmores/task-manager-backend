@@ -3,10 +3,32 @@ from django.contrib.auth.password_validation import validate_password
 from .models import CustomUser, UserRole
 
 class UserSerializer(serializers.ModelSerializer):
+    signature = serializers.CharField(required=False, allow_null=True)
+
     class Meta:
         model = CustomUser
-        fields = ('id', 'email', 'first_name', 'last_name', 'role', 'date_joined', 'is_staff', 'is_superuser')
+        fields = ('id', 'email', 'first_name', 'last_name', 'role', 'date_joined', 'is_staff', 'is_superuser', 'signature')
         read_only_fields = ('date_joined',)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['signature'] = instance.signature.image if instance.signature else None
+        return ret
+
+    def update(self, instance, validated_data):
+        signature_data = validated_data.pop('signature', None)
+        if signature_data is not None:
+            if signature_data == "":
+                instance.signature = None
+            else:
+                from tasks.models import Signature
+                # Get or create signature record for this user
+                sig, _ = Signature.objects.get_or_create(
+                    image=signature_data,
+                    created_by=instance
+                )
+                instance.signature = sig
+        return super().update(instance, validated_data)
 
 
 

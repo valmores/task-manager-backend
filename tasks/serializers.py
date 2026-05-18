@@ -42,22 +42,66 @@ class TaskSerializer(serializers.ModelSerializer):
         required=False,
         error_messages={'invalid': 'Please provide a valid date.'}
     )
+    signature = serializers.CharField(required=False, allow_null=True)
 
     class Meta:
         model = Task
         fields = (
             'id', 'title', 'description', 'project', 'project_name',
             'status', 'priority', 'due_date', 'assigned_to', 
-            'assigned_to_email', 'notes', 'created_by', 'created_at', 'updated_at'
+            'assigned_to_email', 'notes', 'created_by', 'created_at', 'updated_at',
+            'signature', 'signed_at'
         )
         read_only_fields = ('created_by', 'created_at', 'updated_at')
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['signature'] = instance.signature.image if instance.signature else None
+        return ret
+
+    def update(self, instance, validated_data):
+        signature_data = validated_data.pop('signature', None)
+        if signature_data is not None:
+            if signature_data == "":
+                instance.signature = None
+            else:
+                from .models import Signature
+                request_user = self.context.get('request').user if 'request' in self.context else (instance.assigned_to or instance.created_by)
+                sig = Signature.objects.create(
+                    image=signature_data,
+                    created_by=request_user
+                )
+                instance.signature = sig
+        return super().update(instance, validated_data)
+
 
 class TaskStatusUpdateSerializer(serializers.ModelSerializer):
-    """Restricted serializer — regular users can only update status."""
+    """Restricted serializer — regular users can only update status and signature."""
+    signature = serializers.CharField(required=False, allow_null=True)
+
     class Meta:
         model = Task
-        fields = ('id', 'status',)
+        fields = ('id', 'status', 'signature', 'signed_at')
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['signature'] = instance.signature.image if instance.signature else None
+        return ret
+
+    def update(self, instance, validated_data):
+        signature_data = validated_data.pop('signature', None)
+        if signature_data is not None:
+            if signature_data == "":
+                instance.signature = None
+            else:
+                from .models import Signature
+                request_user = self.context.get('request').user if 'request' in self.context else (instance.assigned_to or instance.created_by)
+                sig = Signature.objects.create(
+                    image=signature_data,
+                    created_by=request_user
+                )
+                instance.signature = sig
+        return super().update(instance, validated_data)
 
 
 class TaskAssignmentSerializer(serializers.ModelSerializer):

@@ -19,7 +19,7 @@ class AdminCreateUserView(generics.CreateAPIView):
     permission_classes = (IsAdmin,)
     serializer_class = AdminCreateUserSerializer
 
-class UserDetailView(generics.RetrieveAPIView):
+class UserDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
